@@ -1,0 +1,11 @@
+/CLIENT.bat
+/Core/
+/GameEngine/
+/SERVER.bat
+/Scripts/
+/Sounds/
+/StartSinglePlayer.bat
+/UpdateLightColor.js
+/assets/
+/compile.bat
+/limit.js
