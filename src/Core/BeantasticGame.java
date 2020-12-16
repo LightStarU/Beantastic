@@ -1,3 +1,10 @@
+/* ************************************
+ * Ujjval Tandel and Anshul Shandilya
+ * CSC 165-02: Project 3 Beantastic
+ * 12/15/2020
+ * ***********************************/
+
+
 package Core;
 
 import static ray.rage.scene.SkeletalEntity.EndType.LOOP;
@@ -15,6 +22,8 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import javax.swing.JOptionPane;
+
 import java.io.*;
 import java.util.*;
 import ray.rage.*;
@@ -88,7 +97,7 @@ public class BeantasticGame extends VariableFrameRateGame {
     private final static String GROUND_E = "Ground";
     private final static String GROUND_N = "GroundNode";
     private PhysicsEngine physicsEng; 
-    private PhysicsObject ball1PhysObj, ball2PhysObj, gndPlaneP, rockPhysObj;
+    private PhysicsObject ball1PhysObj, ball2PhysObj, gndPlaneP, rockPhysObj, flagPhysObj;
     
     //Animation variables
     private boolean running = false;
@@ -100,9 +109,9 @@ public class BeantasticGame extends VariableFrameRateGame {
 	
     //Public variables for the class BeantasticGame------------------------------------------------------------------------------------------------------------------
     public Camera camera;
-    public SceneNode playerNode, shipNode, npcNode;		
+    public SceneNode playerNode, shipNode, npcNode, flagNode;		
     public ArrayList<SceneNode> oreNodeList = new ArrayList<SceneNode>(), crystalNodeList = new ArrayList<SceneNode>(), rockNodeList = new ArrayList<SceneNode>();
-    
+    public Light plight2;
     //score 
     private int oresCount;
     private String winner = "";
@@ -200,7 +209,7 @@ public class BeantasticGame extends VariableFrameRateGame {
     protected void setupScene(Engine eng, SceneManager sm) throws IOException {
     	
     	setupNetworking();
-
+    	System.out.println("Collect all the ores!");
     	//physics demonstration
     	SceneNode rootNode = sm.getRootSceneNode();
     	
@@ -220,8 +229,8 @@ public class BeantasticGame extends VariableFrameRateGame {
     	Entity groundEntity = sm.createEntity(GROUND_E, "cube.obj");
     	groundNode = rootNode.createChildSceneNode(GROUND_N);
     	groundNode.attachObject(groundEntity);
-    	groundNode.setLocalPosition(0, -2, -2);
-
+    	groundNode.setLocalPosition(0, -2.5f, 0f);//2f
+    	groundEntity.setVisible(false);
     	im = new GenericInputManager();
       //networking call		
     	//Initializing the input manager
@@ -256,6 +265,22 @@ public class BeantasticGame extends VariableFrameRateGame {
         //Idle is not used currently
         //playerEntity.loadAnimation("idle", "idle.rka");
         
+        //Terrain
+      		Tessellation tessE = sm.createTessellation("tessE", 6);
+      		tessE.setSubdivisions(8f);
+      		SceneNode tessN = (SceneNode) sm.getRootSceneNode().createChildNode("TessN");
+      		tessN.attachObject(tessE);	
+      		//tessN.scale(200, 100, 200);
+      		tessN.scale(130, 230, 130);
+      		//tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
+      		//tessN.yaw(Degreef.createFrom(37.2f));
+      		tessN.setLocalPosition(0f, -2.2f, 0f);
+      		//tessN.setLocalPosition(0f, 0f, 0f);
+      		tessE.setHeightMap(this.getEngine(), "testTerr.png");
+      		//https://freestocktextures.com/texture/turquoise-blue-water,941.html
+      		tessE.setTexture(this.getEngine(), "water.jpg");
+      	//TERRAIN END
+      		
         //npc building
         SkeletalEntity npcEntity = sm.createSkeletalEntity("npc", "astroRig.rkm", "astro.rks");
         Texture texNpc = sm.getTextureManager().getAssetByPath("npcTex.png");
@@ -272,7 +297,8 @@ public class BeantasticGame extends VariableFrameRateGame {
     	
     	//npc 
     	protClient.askForNPC();
-    	  
+   		//update the vertical position of the objects acc. to the terrain ***FILL IN THE INTEGER_TYPE VALUE FOR TYPE OF OBJECT YOU WANT TO UPDATE 1:npc, 2:spaceship, 3:ore, 4:crystal, 5:rock
+    	updateObjectVerticalPosition(npcNode, 1);
         //spaceship----
 		  shipObjectNode = (SceneNode) gameWorldObjectsNode.createChildNode("shipNode");
         Entity shipEntity = sm.createEntity("myShip", "spaceship.obj");
@@ -281,7 +307,8 @@ public class BeantasticGame extends VariableFrameRateGame {
         shipNode.attachObject(shipEntity);
         shipNode.setLocalPosition(0, -0.6f, 0);
     	shipNode.setLocalScale(2f, 2f, 2f);
-        
+   		//update the vertical position of the objects acc. to the terrain ***FILL IN THE INTEGER_TYPE VALUE FOR TYPE OF OBJECT YOU WANT TO UPDATE 1:npc, 2:spaceship, 3:ore, 4:crystal, 5:rock
+    	updateObjectVerticalPosition(shipNode, 2);
         TextureManager shipTM = eng.getTextureManager();
         //change cube.png is spaceship texture
         Texture shipA = shipTM.getAssetByPath("cube.png");
@@ -298,10 +325,12 @@ public class BeantasticGame extends VariableFrameRateGame {
         //this.executeScript(jsEngine, scriptFile);
         this.runScript(scriptFile);
        
-     
+        
+        
+
         //Setting ores objects for the game world
         for(int i = 0; i < maxOre; i++) {
-        
+        	
         	SceneNode tempOreObjectNode, tempOreNode;
 	   		tempOreObjectNode = (SceneNode) gameWorldObjectsNode.createChildNode("oreNode" + i);
 	   		Entity oreEntity = sm.createEntity("myOre" + i, "ore.obj");
@@ -309,18 +338,21 @@ public class BeantasticGame extends VariableFrameRateGame {
 	   		tempOreNode = tempOreObjectNode.createChildSceneNode(oreEntity.getName() + "Node");
 	   		tempOreNode.attachObject(oreEntity);
 	   		tempOreNode.setLocalScale(0.5f, 0.5f, 0.5f); 
-            tempOreNode.translate(5,6,5);
-	   		tempOreNode.setLocalPosition(randomNumber.nextInt(100)-50, -.6f, randomNumber.nextInt(100)-50);			//Set random position
-	   		
+            tempOreNode.translate(5,5,5);
+	   		tempOreNode.setLocalPosition(randomNumber.nextInt(100)-50, -.7f, randomNumber.nextInt(100)-50);			//Set random position
+
 	   		//Setting the rotation controller
-	   		RotationController rcOre = new RotationController(Vector3f.createUnitVectorY(), .1f); 												//Rotation for the ore model in the game 
+	   		RotationController rcOre = new RotationController(Vector3f.createUnitVectorY(), .3f); 												//Rotation for the ore model in the game 
 	   		rcOre.addNode(tempOreNode); 
 	   		sm.addController(rcOre);
 	   		
+
 	   		//Filling the respective arrays
 	   		oreObjectList.add(tempOreObjectNode);
 	   		oreNodeList.add(tempOreNode);
-        	
+	   	//update the vertical position of the objects acc. to the terrain ***FILL IN THE INTEGER_TYPE VALUE FOR TYPE OF OBJECT YOU WANT TO UPDATE 1:npc, 2:spaceship, 3:ore, 4:crystal, 5:rock
+	    	updateObjectVerticalPosition(tempOreNode, 3);
+	   		
         }
         
         //Setting crystal objects for the game world
@@ -332,15 +364,16 @@ public class BeantasticGame extends VariableFrameRateGame {
             crystalEntity.setPrimitive(Primitive.TRIANGLES);
             tempCrystalNode = tempCrystalObjectNode.createChildSceneNode(crystalEntity.getName() + "Node");
             tempCrystalNode.attachObject(crystalEntity);
-            tempCrystalNode.setLocalPosition(randomNumber.nextInt(100)-50,-.6f, randomNumber.nextInt(100)-50);
-            tempCrystalNode.setLocalScale(0.3f, 0.3f, 0.3f);
-	   		
+            tempCrystalNode.setLocalPosition(randomNumber.nextInt(100)-50,-1.7f, randomNumber.nextInt(100)-50);
+            tempCrystalNode.setLocalScale(0.4f, 0.6f, 0.4f);
 	   		//Filling the respective arrays
 	   		crystalObjectList.add(tempCrystalObjectNode);
 	   		crystalNodeList.add(tempCrystalNode);
+	   		//update the vertical position of the objects acc. to the terrain ***FILL IN THE INTEGER_TYPE VALUE FOR TYPE OF OBJECT YOU WANT TO UPDATE 1:npc, 2:spaceship, 3:ore, 4:crystal, 5:rock
+	   		updateObjectVerticalPosition(tempCrystalNode, 4);
         	
         }
-        
+       
         //Setting Rocks objects for the game world
         for(int i = 0; i < maxRocks; i++) {
         
@@ -386,7 +419,8 @@ public class BeantasticGame extends VariableFrameRateGame {
 	   		//Filling the respective arrays
 	   		rockObjectList.add(tempRockObjectNode);
 	   		rockNodeList.add(tempRockNode);
-        	
+	   		//update the vertical position of the objects acc. to the terrain ***FILL IN THE INTEGER_TYPE VALUE FOR TYPE OF OBJECT YOU WANT TO UPDATE 1:npc, 2:spaceship, 3:ore, 4:crystal, 5:rock
+	   		updateObjectVerticalPosition(tempRockNode, 5);
         }
         
         //Setting a planet for the looks of the game
@@ -413,6 +447,20 @@ public class BeantasticGame extends VariableFrameRateGame {
 		rcPlanet.addNode(planetChildNode);
 		sm.addController(rcPlanet);
 
+		//Flag 
+		flagNode = gameWorldObjectsNode.createChildSceneNode("flagNode");
+		Entity flagEntity = sm.createEntity("flagEntity", "flag.obj");
+        flagEntity.setPrimitive(Primitive.TRIANGLES);
+        //UV is laid out differently for flags, can use same textures with different colors
+        TextureManager flagTex = eng.getTextureManager();
+        Texture fTex = flagTex.getAssetByPath("astroTex.png");
+        RenderSystem rsFlag = sm.getRenderSystem();
+        TextureState stateFlag = (TextureState)rsFlag.createRenderState(RenderState.Type.TEXTURE);
+        stateFlag.setTexture(fTex);
+        flagEntity.setRenderState(stateFlag);
+		SceneNode flagChildNode = flagNode.createChildSceneNode(flagEntity.getName() + "Node");
+		flagChildNode.setLocalPosition(0, -2f, 10f);//.6
+        flagChildNode.attachObject(flagEntity);
         
         // Set up Lights----
         sm.getAmbientLight().setIntensity(new Color(.3f, .3f, .3f));
@@ -421,10 +469,19 @@ public class BeantasticGame extends VariableFrameRateGame {
         plight.setDiffuse(new Color(.9f, .9f, .9f));
 		plight.setSpecular(new Color(.9f, 1.0f, .05f));
         plight.setRange(1.75f);
-        
+       
 		SceneNode plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
         plightNode.attachObject(plight);
         playerEntity.getParentSceneNode().attachObject(plight);
+        
+        //Turn light ON and OFF--requirement
+        sm.getAmbientLight().setIntensity(new Color(0.1f, 0.1f, 0.1f));
+		plight2 = sm.createLight("testLamp2", Light.Type.DIRECTIONAL);
+		plight2.setAmbient(new Color(.5f, .3f, .2f));
+        plight2.setDiffuse(new Color(.8f, .6f, .5f));
+		plight2.setSpecular(new Color(.9f, .8f, .04f));
+        plight2.setRange(5f);
+        planetEntity.getParentSceneNode().attachObject(plight2);
         
         //Setting up sky box   
         Configuration conf = eng.getConfiguration();
@@ -457,20 +514,21 @@ public class BeantasticGame extends VariableFrameRateGame {
 		sb.setTexture(top, SkyBox.Face.TOP);        
 		sb.setTexture(bottom, SkyBox.Face.BOTTOM);        
 		sm.setActiveSkyBox(sb);
-		
+		/*
 		//Terrain
 		Tessellation tessE = sm.createTessellation("tessE", 6);
 		tessE.setSubdivisions(8f);
 		SceneNode tessN = (SceneNode) sm.getRootSceneNode().createChildNode("TessN");
 		tessN.attachObject(tessE);	
-		tessN.scale(200, 100, 200);
+		//tessN.scale(200, 100, 200);
+		tessN.scale(130, 230, 130);
 		//tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
 		//tessN.yaw(Degreef.createFrom(37.2f));
-		tessN.setLocalPosition(-1, -1.5f, -5);
+		tessN.setLocalPosition(0f, -2.2f, 0f);
 		//tessN.setLocalPosition(0f, 0f, 0f);
-		tessE.setHeightMap(this.getEngine(), "tn.png");
+		tessE.setHeightMap(this.getEngine(), "testTerr.png");
 		//https://freestocktextures.com/texture/turquoise-blue-water,941.html
-		tessE.setTexture(this.getEngine(), "water.jpg");
+		tessE.setTexture(this.getEngine(), "water.jpg");*/
 		
 	
 		
@@ -496,7 +554,7 @@ public class BeantasticGame extends VariableFrameRateGame {
     private void initPhysicsSystem() {
 		// TODO Auto-generated method stub
 		String engine = "ray.physics.JBullet.JBulletPhysicsEngine";
-		float[] gravity = {0, -3f, 0};
+		float[] gravity = {0, -4f, 0};
 		physicsEng = PhysicsEngineFactory.createPhysicsEngine(engine);
 		physicsEng.initSystem();
 		physicsEng.setGravity(gravity);
@@ -507,13 +565,15 @@ public class BeantasticGame extends VariableFrameRateGame {
 		 float mass = 10.0f;
 		 float massS = 0.1f;
 		 float massR = 5f;
+		 float massF = 0.1f;
 		 float radius = 1.5f;
 		 float h = 2.0f;
 		 //hitboxes around the object
 		 float up[] = {0f,1f,0f};
-		 float s[]= {2f, 2f, 2f};
+		 float ship[]= {2f, 2f, 1.5f};
+		 float flag[] = {.2f, 1f, .2f};
 		 float r[]= {0.2f, 8f, 0.2f};
-		 double[] temptf, temptf2; 
+		 double[] temptf, temptf2, temptf3; 
 		 
 		 //meteor
 		 temptf = toDoubleArray(ball1Node.getLocalTransform().toFloatArray());
@@ -527,9 +587,16 @@ public class BeantasticGame extends VariableFrameRateGame {
 		 //ship
 		 temptf2 = toDoubleArray(shipNode.getLocalTransform().toFloatArray());
 		 //ball2PhysObj = physicsEng.addSphereObject(physicsEng.nextUID(),massS, temptf2, 2.0f);
-		 ball2PhysObj = physicsEng.addBoxObject(physicsEng.nextUID(), massS, temptf2, s);
+		 ball2PhysObj = physicsEng.addBoxObject(physicsEng.nextUID(), massS, temptf2, ship);
 		 ball2PhysObj.setBounciness(.01f);
 		 shipNode.setPhysicsObject(ball2PhysObj);
+		 
+		 //flag
+		 /*temptf3 = toDoubleArray(flagNode.getLocalTransform().toFloatArray());
+		 //flagPhysObj = physicsEng.addBoxObject(physicsEng.nextUID(), massF, temptf3, flag);
+		 flagPhysObj = physicsEng.addCylinderObject(physicsEng.nextUID(), massF, temptf3, flag);
+		 //flagPhysObj.setBounciness(.01f);
+		 flagNode.setPhysicsObject(flagPhysObj);*/
 		 
 		 /*
 		 temptf = toDoubleArray(rockNodeList.set(maxRocks, rockNode).getLocalTransform().toFloatArray());
@@ -549,10 +616,12 @@ public class BeantasticGame extends VariableFrameRateGame {
 		 gndPlaneP = physicsEng.addStaticPlaneObject(physicsEng.nextUID(),temptf, up, 0.35f);
 		 gndPlaneP.setBounciness(.01f);
 		 gndPlaneP.setFriction(5f);
-		 groundNode.scale(3f, .05f, 3f);
-		 groundNode.setLocalPosition(0, -7, -2);
+		 groundNode.scale(130f, .01f, 130f);
+		 //groundNode.setLocalPosition(0f, -7.5f, -2f);
+		 groundNode.setLocalPosition(0f, -9.8f, -2f);
 		 groundNode.setPhysicsObject(gndPlaneP);
 		
+		 
 	}
     
     private double[] toDoubleArray(float[] arr) {
@@ -595,6 +664,9 @@ public class BeantasticGame extends VariableFrameRateGame {
     		case KeyEvent.VK_SPACE:System.out.println("Starting Physics!");
     			running = true;
     			break;
+    		case KeyEvent.VK_L:System.out.println("Toggle the SUN !!!");
+				plight2.setVisible(!plight2.isVisible());
+				break;
     			
     	} 
     	
@@ -918,9 +990,9 @@ public class BeantasticGame extends VariableFrameRateGame {
 		elapsTimeStr = Integer.toString(elapsTimeSec);
 		im.update(elapsTime);	
 		playerController.updateCameraPosition();
-		dispStr = "Player time = "+elapsTimeStr+"  Ores Collected = "+ oresCount + "/" + maxOre + " " + winner;
+		dispStr = "Player time = "+elapsTimeStr+"  Ores Collected = "+ oresCount + "/" + maxOre + "            " + winner;
 
-		rs.setHUD(dispStr, 15, 15);
+		rs.setHUD(dispStr, 15, 25);
 
 		//physics
 		if(running) {
@@ -984,22 +1056,28 @@ public class BeantasticGame extends VariableFrameRateGame {
 		
 		//collision
 		SceneNode player = getEngine().getSceneManager().getSceneNode("myPlayerNode");
+		SceneNode ship = getEngine().getSceneManager().getSceneNode("shipNode");
 		for(int i =0; i<= oreNodeList.size()-1; i++)
 		{
 			SceneNode target = oreNodeList.get(i);
 			if(colDetection(player, target)< 1f)
 			{
 				oreNodeList.remove(i);
+				
 				player.attachChild(target);
 				oresCount++;
 				//System.out.println("cyrtal collected" + oresCount);
 			}
 		}
-		if(oreNodeList.size() < 1)
+		if(oreNodeList.size() < 1 && colDetection(player, ship)<30)
 		{
-			winner = "Winner";
+			//winner = "All ores collected head back to the ship!";
+			winner = "CAREFUL! METEOR!";
+			running = true;
+			//turn on physics
 			//System.out.println("Winner");
 		}
+		
 	}
     //collision detection
     private float colDetection(SceneNode s, SceneNode d){
@@ -1022,6 +1100,32 @@ public class BeantasticGame extends VariableFrameRateGame {
 	}
 
     
+    public void updateObjectVerticalPosition(SceneNode tempNode, int type) {
+																																											  
+		
+		//int types  ==>  1:npc, 2:spaceship, 3:ore, 4:crystal, 5:rock
+		float delta = 0.5f;
+		if(type == 1)
+			delta = 5f;//1.5f
+		else if(type == 2)
+			delta = 0.5f;
+		else if(type ==3)
+			delta = 0.8f;//.5f
+		else if(type == 4)
+			delta = 0.16f;
+		else if(type == 5)
+			delta = 0.0f;
+		
+		//Getting and setting the info. variables
+		SceneNode objectNode = tempNode;
+		SceneNode tessNode = this.getEngine().getSceneManager().getSceneNode("TessN");
+		Tessellation tessEntity = ((Tessellation)tessNode.getAttachedObject("tessE"));
+		Vector3 objectPosition = objectNode.getWorldPosition();
+		Vector3 localObjectPosition = objectNode.getLocalPosition();
+		Vector3 newObjectPosition = Vector3f.createFrom(localObjectPosition.x(), tessEntity.getWorldHeight(objectPosition.x(), objectPosition.z()) + delta, localObjectPosition.z());
+		objectNode.setLocalPosition(newObjectPosition);																								//Updating the object location location
+		
+	}
     
     //Function to update the player height according to the terrain----
 	public void updateVerticalPosition() {
